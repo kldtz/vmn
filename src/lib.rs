@@ -7,7 +7,7 @@ use csv::Writer;
 use rand::seq::SliceRandom;
 use std::cmp::max;
 use std::fs::{File, OpenOptions};
-use std::io::{Seek, SeekFrom};
+use std::io::{stdout, Seek, SeekFrom, StdoutLock, Write};
 use std::path::Path;
 use struct_field_names_as_array::FieldNamesAsArray;
 use text_io::read;
@@ -38,27 +38,29 @@ pub fn add(path: &Path) -> Result<()> {
         ));
     }
     let now = Local::now().date_naive();
-    let file = OpenOptions::new().write(true).append(true).open(path)?;
+    let file = OpenOptions::new().append(true).open(path)?;
     let mut writer = csv::WriterBuilder::new()
         .has_headers(false)
         .from_writer(file);
 
+    let mut lock = stdout().lock();
+
     loop {
-        print!("Front: ");
+        write!(lock, "Front: ")?;
         let front: String = read!("{}\n");
-        print!("Back:  ");
+        write!(lock, "Back:  ")?;
         let back: String = read!("{}\n");
-        print!("Days:  ");
+        write!(lock, "Days:  ")?;
         let next_review: String = read!("{}\n");
-        let timedelta = if next_review.len() == 0 {
+        let timedelta = if next_review.is_empty() {
             Ok(TimeDelta::days(0))
         } else {
             parse_timespan(&next_review)
         }?;
-        println!();
+        writeln!(lock)?;
         writer.serialize(Card {
-            front: front,
-            back: back,
+            front,
+            back,
             last_forward_review: now,
             next_forward_review: now + timedelta,
             last_backward_review: now,
@@ -70,13 +72,14 @@ pub fn add(path: &Path) -> Result<()> {
 
 /// Lets user review all due cards until there aren't anymore.
 pub fn review(path: &Path) -> Result<()> {
+    let mut lock = stdout().lock();
     let now: NaiveDate = Local::now().date_naive();
     let mut records = collect_due_cards(path, now)?;
     if records.is_empty() {
-        println!("No cards due for review in {:?}", path);
+        writeln!(lock, "No cards due for review in {:?}", path)?;
         return Ok(());
     }
-    println!("Reviewing due cards in {:?}", path);
+    writeln!(lock, "Reviewing due cards in {:?}", path)?;
     let mut rng = rand::rng();
     let file = OpenOptions::new().write(true).open(path)?;
     let mut writer = csv::WriterBuilder::new()
@@ -89,12 +92,13 @@ pub fn review(path: &Path) -> Result<()> {
     loop {
         let mut cards_due = false;
         let mut reviews = collect_due_card_indices(&records, now);
-        println!(
+        writeln!(
+            lock,
             "Round {}: {} card{} to review\n",
             round,
             reviews.len(),
             if reviews.len() == 1 { "" } else { "s" }
-        );
+        )?;
         if num_reviews == 0 {
             num_cards = reviews.len();
         }
@@ -104,7 +108,7 @@ pub fn review(path: &Path) -> Result<()> {
         for (i, is_forward) in reviews {
             let record = &mut records[i];
             let card = &mut record.card;
-            if review_card(now, is_forward, card)? {
+            if review_card(now, is_forward, card, &mut lock)? {
                 cards_due = true;
             }
             update_record(&mut writer, record)?;
@@ -116,13 +120,14 @@ pub fn review(path: &Path) -> Result<()> {
         round += 1;
     }
 
-    println!(
+    writeln!(
+        lock,
         "{} review{} of {} card{}. Done.",
         num_reviews,
         if num_reviews == 1 { "" } else { "s" },
         num_cards,
         if num_cards == 1 { "" } else { "s" }
-    );
+    )?;
     Ok(())
 }
 
@@ -141,7 +146,7 @@ fn collect_due_cards(path: &Path, now: NaiveDate) -> Result<Vec<Record>> {
         })
         .filter(|r| {
             if let Ok(r) = r {
-                r.card.next_forward_review <= now || r.card.next_forward_review <= now
+                r.card.next_forward_review <= now || r.card.next_backward_review <= now
             } else {
                 false
             }
@@ -150,7 +155,7 @@ fn collect_due_cards(path: &Path, now: NaiveDate) -> Result<Vec<Record>> {
     Ok(records)
 }
 
-fn collect_due_card_indices(cards: &Vec<Record>, now: NaiveDate) -> Vec<(usize, bool)> {
+fn collect_due_card_indices(cards: &[Record], now: NaiveDate) -> Vec<(usize, bool)> {
     // Find two sets of indexes: due forward reviews & due backward reviews
     let mut reviews: Vec<(usize, bool)> = Vec::new();
     for (i, record) in cards.iter().enumerate() {
@@ -165,7 +170,7 @@ fn collect_due_card_indices(cards: &Vec<Record>, now: NaiveDate) -> Vec<(usize, 
 }
 
 // Lets user review card. Returns true if the card is rescheduled for review on the same day.
-fn review_card(now: NaiveDate, is_forward: bool, card: &mut Card) -> Result<bool> {
+fn review_card(now: NaiveDate, is_forward: bool, card: &mut Card, lock: &mut StdoutLock) -> Result<bool> {
     let card_ref = if is_forward {
         CardRef {
             front: &card.front,
@@ -182,24 +187,24 @@ fn review_card(now: NaiveDate, is_forward: bool, card: &mut Card) -> Result<bool
         }
     };
 
-    print!("F: {}", card_ref.front);
+    write!(lock, "F: {}", card_ref.front)?;
     let _: String = read!("{}\n");
 
     let num_days = (now - *card_ref.last_review).num_days();
     let suffix = if num_days == 1 { "" } else { "s" };
-    println!("B: {}", card_ref.back);
-    print!("Last review: {} day{} ago. Next in: ", num_days, suffix);
+    writeln!(lock, "B: {}", card_ref.back)?;
+    write!(lock, "Last review: {} day{} ago. Next in: ", num_days, suffix)?;
 
     let timespan: String = read!("{}\n");
 
-    let timespan: TimeDelta = if timespan.len() == 0 {
+    let timespan: TimeDelta = if timespan.is_empty() {
         max((now - *card_ref.last_review) * 2, TimeDelta::days(1))
     } else {
         parse_timespan(&timespan)?
     };
     *card_ref.next_review = now + timespan;
     *card_ref.last_review = now;
-    println!();
+    writeln!(lock)?;
     Ok(timespan.is_zero())
 }
 
