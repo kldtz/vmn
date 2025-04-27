@@ -7,6 +7,7 @@ use csv::Writer;
 use rand::seq::SliceRandom;
 use std::cmp::max;
 use std::fs::{File, OpenOptions};
+use std::io;
 use std::io::{stdout, Seek, SeekFrom, StdoutLock, Write};
 use std::path::Path;
 use struct_field_names_as_array::FieldNamesAsArray;
@@ -79,6 +80,7 @@ pub fn review(path: &Path) -> Result<()> {
         writeln!(lock, "No cards due for review in {:?}", path)?;
         return Ok(());
     }
+    clear(&mut lock)?;
     writeln!(lock, "Reviewing due cards in {:?}", path)?;
     let mut rng = rand::rng();
     let file = OpenOptions::new().write(true).open(path)?;
@@ -170,7 +172,12 @@ fn collect_due_card_indices(cards: &[Record], now: NaiveDate) -> Vec<(usize, boo
 }
 
 // Lets user review card. Returns true if the card is rescheduled for review on the same day.
-fn review_card(now: NaiveDate, is_forward: bool, card: &mut Card, lock: &mut StdoutLock) -> Result<bool> {
+fn review_card(
+    now: NaiveDate,
+    is_forward: bool,
+    card: &mut Card,
+    lock: &mut StdoutLock,
+) -> Result<bool> {
     let card_ref = if is_forward {
         CardRef {
             front: &card.front,
@@ -193,7 +200,11 @@ fn review_card(now: NaiveDate, is_forward: bool, card: &mut Card, lock: &mut Std
     let num_days = (now - *card_ref.last_review).num_days();
     let suffix = if num_days == 1 { "" } else { "s" };
     writeln!(lock, "B: {}", card_ref.back)?;
-    write!(lock, "Last review: {} day{} ago. Next in: ", num_days, suffix)?;
+    write!(
+        lock,
+        "Last review: {} day{} ago. Next in: ",
+        num_days, suffix
+    )?;
 
     let timespan: String = read!("{}\n");
 
@@ -205,7 +216,12 @@ fn review_card(now: NaiveDate, is_forward: bool, card: &mut Card, lock: &mut Std
     *card_ref.next_review = now + timespan;
     *card_ref.last_review = now;
     writeln!(lock)?;
+    clear(lock)?;
     Ok(timespan.is_zero())
+}
+
+fn clear(lock: &mut StdoutLock) -> io::Result<()> {
+    write!(lock, "{esc}[2J{esc}[1;1H", esc = 27 as char)
 }
 
 fn parse_timespan(s: &str) -> Result<TimeDelta> {
