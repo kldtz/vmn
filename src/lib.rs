@@ -22,6 +22,8 @@ pub fn init(path: &Path) -> Result<()> {
         ));
     }
     let mut writer = csv::WriterBuilder::new()
+        .delimiter(b'|')
+        .quote(b'#')
         .has_headers(false)
         .from_path(path)?;
     writer.write_record(Card::FIELD_NAMES_AS_ARRAY)?;
@@ -41,6 +43,8 @@ pub fn add(path: &Path) -> Result<()> {
     let now = Local::now().date_naive();
     let file = OpenOptions::new().append(true).open(path)?;
     let mut writer = csv::WriterBuilder::new()
+        .delimiter(b'|')
+        .quote(b'#')
         .has_headers(false)
         .from_writer(file);
 
@@ -85,6 +89,8 @@ pub fn review(path: &Path) -> Result<()> {
     let mut rng = rand::rng();
     let file = OpenOptions::new().write(true).open(path)?;
     let mut writer = csv::WriterBuilder::new()
+        .delimiter(b'|')
+        .quote(b'#')
         .has_headers(false)
         .from_writer(file);
 
@@ -135,6 +141,8 @@ pub fn review(path: &Path) -> Result<()> {
 
 fn collect_due_cards(path: &Path, now: NaiveDate) -> Result<Vec<Record>> {
     let mut reader = csv::ReaderBuilder::new()
+        .delimiter(b'|')
+        .quote(b'#')
         .has_headers(true)
         .from_path(path)?;
     let records: Vec<Record> = reader
