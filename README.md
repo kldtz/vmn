@@ -4,7 +4,7 @@ No-frills spaced repetition **V**ergiss**M**ein**N**icht. Hacked together in an 
 
 * Add and review cards on the command line.
 * Freely set the time for the next review or use the default.
-* Cards are kept in simple human-readable CSV files that you can keep under version control.
+* Cards are kept in simple human-readable CSV[^1] files that you can keep under version control.
 * No statistics, no menus or buttons, nothing but plain text.
 
 ## Installation
@@ -61,3 +61,6 @@ Cards are reviewed independently in both directions.
 
 Open the CSV file with your favourite editor.
 Keep the CSV under version control, just in case you corrupt the file.
+
+
+[^1]: For better editability, the CSV files are not compliant with RFC 4180.
