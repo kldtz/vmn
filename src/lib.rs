@@ -59,14 +59,14 @@ pub fn add(path: &Path) -> Result<()> {
         write!(lock, "Front: ")?;
         let front: String = read!("{}\n");
         if let Some(i) = forward.get(&front) {
-            writeln!(lock, "A card with this front side already exists. Please check line {} of your CSV file!", i)?;
+            writeln!(lock, "A card with this front side already exists. Please check line {} of {:?}!", i, path)?;
             exit(1);
         }
 
         write!(lock, "Back:  ")?;
         let back: String = read!("{}\n");
         if let Some(i) = backward.get(&front) {
-            writeln!(lock, "A card with this back side already exists. Please check line {} of your CSV file!", i)?;
+            writeln!(lock, "A card with this back side already exists. Please check line {} of {:?}!", i, path)?;
             exit(1);
         }
 
