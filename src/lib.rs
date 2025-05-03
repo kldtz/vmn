@@ -6,10 +6,12 @@ use chrono::{Local, NaiveDate, TimeDelta};
 use csv::Writer;
 use rand::seq::SliceRandom;
 use std::cmp::max;
+use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::{stdout, Seek, SeekFrom, StdoutLock, Write};
 use std::path::Path;
+use std::process::exit;
 use struct_field_names_as_array::FieldNamesAsArray;
 use text_io::read;
 
@@ -40,6 +42,9 @@ pub fn add(path: &Path) -> Result<()> {
             path
         ));
     }
+
+    let (forward, backward) = build_lookup_tables(path)?;
+
     let now = Local::now().date_naive();
     let file = OpenOptions::new().append(true).open(path)?;
     let mut writer = csv::WriterBuilder::new()
@@ -53,8 +58,18 @@ pub fn add(path: &Path) -> Result<()> {
     loop {
         write!(lock, "Front: ")?;
         let front: String = read!("{}\n");
+        if let Some(i) = forward.get(&front) {
+            writeln!(lock, "A card with this front side already exists. Please check line {} of your CSV file!", i)?;
+            exit(1);
+        }
+
         write!(lock, "Back:  ")?;
         let back: String = read!("{}\n");
+        if let Some(i) = backward.get(&front) {
+            writeln!(lock, "A card with this back side already exists. Please check line {} of your CSV file!", i)?;
+            exit(1);
+        }
+
         write!(lock, "Days:  ")?;
         let next_review: String = read!("{}\n");
         let timedelta = if next_review.is_empty() {
@@ -73,6 +88,22 @@ pub fn add(path: &Path) -> Result<()> {
         })?;
         writer.flush()?;
     }
+}
+
+fn build_lookup_tables(path: &Path) -> Result<(HashMap<String, usize>, HashMap<String, usize>)> {
+    let mut reader = csv::ReaderBuilder::new()
+        .delimiter(b'|')
+        .quote(b'#')
+        .has_headers(true)
+        .from_path(path)?;
+    let mut forward = HashMap::<String, usize>::new();
+    let mut backward  = HashMap::<String, usize>::new();
+    for (i, record) in reader.records().enumerate() {
+        let card = record?.deserialize::<Card>(None)?;
+        forward.insert(card.front, i + 2);
+        backward.insert(card.back, i + 2);
+    }
+    Ok((forward, backward))
 }
 
 /// Lets user review all due cards until there aren't anymore.
