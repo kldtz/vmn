@@ -5,7 +5,7 @@ No-frills spaced repetition **V**ergiss**M**ein**N**icht. Hacked together in an 
 * Add and review cards on the command line.
 * Freely set the time for the next review or use the default.
 * Cards are kept in simple human-readable CSV[^1] files that you can keep under version control.
-* No statistics, no menus or buttons, nothing but plain text.
+* No menus or buttons, nothing but plain text.
 
 ## Installation
 
@@ -57,9 +57,19 @@ Entering zero reschedules the card for the same day, so the card will re-appear 
 Cards are reviewed independently in both directions.
 
 
+### Print statistics
+
+```bash
+vmn stats french.csv
+```
+
+Gives an overview of the latest review intervals: a long interval indicates that the card has entered your long-term memory.
+
+
 ### Edit cards
 
 Open the CSV file with your favourite editor.
+`|` is used as delimiter, `#` as quote, so if you avoid these characters, you don't need to bother with quoting.
 Keep the CSV under version control, just in case you corrupt the file.
 
 

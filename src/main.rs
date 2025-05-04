@@ -2,7 +2,10 @@ use anyhow::Result;
 use clap::Parser;
 use serde::Serialize;
 use std::path::PathBuf;
-use vmn::{add, init, review};
+use vmn::add::add;
+use vmn::init::init;
+use vmn::review::review;
+use vmn::stats::stats;
 
 #[derive(clap::ValueEnum, Clone, Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -10,6 +13,7 @@ enum Command {
     Init,
     Add,
     Review,
+    Stats,
 }
 
 /// Spaced-repetition CLI VergissMeinNicht.
@@ -28,5 +32,6 @@ fn main() -> Result<()> {
         Command::Init => init(&args.path),
         Command::Add => add(&args.path),
         Command::Review => review(&args.path),
+        Command::Stats => stats(&args.path),
     }
 }
