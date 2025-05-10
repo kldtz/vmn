@@ -1,18 +1,18 @@
 use crate::models::{Card, CardRef, Record};
-use crate::utils::{clear, create_reader, parse_timespan};
+use crate::utils::{clear, create_reader, parse_timespan, read_line};
 use anyhow::Result;
 use chrono::{Local, NaiveDate, TimeDelta};
 use csv::Writer;
 use rand::seq::SliceRandom;
 use std::cmp::max;
 use std::fs::{File, OpenOptions};
-use std::io::{stdout, Seek, SeekFrom, StdoutLock, Write};
+use std::io::{stdin, stdout, BufRead, Seek, SeekFrom, Write};
 use std::path::Path;
-use text_io::read;
 
 /// Lets user review all due cards until there aren't anymore.
 pub fn review(path: &Path) -> Result<()> {
     let mut lock = stdout().lock();
+    let mut stdin_lock = stdin().lock();
     let now: NaiveDate = Local::now().date_naive();
     let mut records = collect_due_cards(path, now)?;
     if records.is_empty() {
@@ -51,7 +51,7 @@ pub fn review(path: &Path) -> Result<()> {
         for (i, is_forward) in reviews {
             let record = &mut records[i];
             let card = &mut record.card;
-            if review_card(now, is_forward, card, &mut lock)? {
+            if review_card(now, is_forward, card, &mut lock, &mut stdin_lock)? {
                 cards_due = true;
             }
             update_record(&mut writer, record)?;
@@ -111,12 +111,17 @@ fn collect_due_card_indices(cards: &[Record], now: NaiveDate) -> Vec<(usize, boo
 }
 
 // Lets user review card. Returns true if the card is rescheduled for review on the same day.
-fn review_card(
+fn review_card<R, W>(
     now: NaiveDate,
     is_forward: bool,
     card: &mut Card,
-    lock: &mut StdoutLock,
-) -> Result<bool> {
+    stdout: &mut W,
+    stdin: &mut R,
+) -> Result<bool>
+where
+    R: BufRead,
+    W: Write,
+{
     let card_ref = if is_forward {
         CardRef {
             front: &card.front,
@@ -133,19 +138,21 @@ fn review_card(
         }
     };
 
-    write!(lock, "F: {}", card_ref.front)?;
-    let _: String = read!("{}\n");
+    write!(stdout, "F: {}", card_ref.front)?;
+    stdout.flush()?;
+    let _: String = read_line(&mut *stdin)?;
 
     let num_days = (now - *card_ref.last_review).num_days();
     let suffix = if num_days == 1 { "" } else { "s" };
-    writeln!(lock, "B: {}", card_ref.back)?;
+    writeln!(stdout, "B: {}", card_ref.back)?;
     write!(
-        lock,
+        stdout,
         "Last review: {} day{} ago. Next in: ",
         num_days, suffix
     )?;
+    stdout.flush()?;
 
-    let timespan: String = read!("{}\n");
+    let timespan: String = read_line(&mut *stdin)?;
 
     let timespan: TimeDelta = if timespan.is_empty() {
         max((now - *card_ref.last_review) * 2, TimeDelta::days(1))
@@ -154,8 +161,9 @@ fn review_card(
     };
     *card_ref.next_review = now + timespan;
     *card_ref.last_review = now;
-    writeln!(lock)?;
-    clear(lock)?;
+    writeln!(stdout)?;
+    clear(stdout)?;
+    stdout.flush()?;
     Ok(timespan.is_zero())
 }
 
@@ -168,4 +176,35 @@ fn update_record(writer: &mut Writer<File>, record: &mut Record) -> Result<()> {
     writer.serialize(&record.card)?;
     writer.flush()?;
     Ok(())
+}
+
+#[test]
+fn test_review_card() {
+    use std::io::Cursor;
+
+    let today = NaiveDate::from_ymd_opt(2025, 5, 10).unwrap();
+    let mut card = Card {
+        front: String::from("a"),
+        back: String::from("b"),
+        last_forward_review: NaiveDate::from_ymd_opt(2025, 5, 8).unwrap(),
+        last_backward_review: NaiveDate::from_ymd_opt(2025, 5, 9).unwrap(),
+        next_forward_review: today,
+        next_backward_review: today,
+    };
+    let mut stdout = Cursor::new(Vec::new());
+    let mut stdin = Cursor::new(b"\n\n");
+    let result = review_card(today, true, &mut card, &mut stdout, &mut stdin);
+
+    // Check result: timespan is not zero
+    assert!(!result.ok().unwrap());
+
+    // Check prompts
+    let stdout_vec = stdout.into_inner();
+    assert_eq!(
+        String::from_utf8_lossy(&stdout_vec),
+        "F: aB: b\nLast review: 2 days ago. Next in: \n\u{1b}[2J\u{1b}[1;1H"
+    );
+
+    // Check that card was updated: double timespan by default
+    assert_eq!(card.next_forward_review, today + TimeDelta::days(4))
 }

@@ -3,7 +3,7 @@ use chrono::TimeDelta;
 use csv::Reader;
 use std::fs::File;
 use std::io;
-use std::io::{StdoutLock, Write};
+use std::io::Write;
 use std::path::Path;
 
 pub fn parse_timespan(s: &str) -> Result<TimeDelta> {
@@ -11,7 +11,10 @@ pub fn parse_timespan(s: &str) -> Result<TimeDelta> {
     Ok(TimeDelta::days(days))
 }
 
-pub fn clear(lock: &mut StdoutLock) -> io::Result<()> {
+pub fn clear<W>(lock: &mut W) -> io::Result<()>
+where
+    W: Write,
+{
     write!(lock, "{esc}[2J{esc}[1;1H", esc = 27 as char)
 }
 
