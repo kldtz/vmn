@@ -22,3 +22,13 @@ pub fn create_reader(path: &Path) -> csv::Result<Reader<File>> {
         .has_headers(true)
         .from_path(path)
 }
+
+pub fn read_line<R>(mut reader: R) -> io::Result<String>
+where
+    R: io::BufRead,
+{
+    let mut input = String::new();
+    reader.read_line(&mut input)?;
+    input.truncate(input.trim_end().len());
+    Ok(input)
+}
