@@ -11,16 +11,16 @@ use std::path::Path;
 
 /// Lets user review all due cards until there aren't anymore.
 pub fn review(path: &Path) -> Result<()> {
-    let mut lock = stdout().lock();
+    let mut stdout_lock = stdout().lock();
     let mut stdin_lock = stdin().lock();
     let now: NaiveDate = Local::now().date_naive();
     let mut records = collect_due_cards(path, now)?;
     if records.is_empty() {
-        writeln!(lock, "No cards due for review in {:?}", path)?;
+        writeln!(stdout_lock, "No cards due for review in {:?}", path)?;
         return Ok(());
     }
-    clear(&mut lock)?;
-    writeln!(lock, "Reviewing due cards in {:?}", path)?;
+    clear(&mut stdout_lock)?;
+    writeln!(stdout_lock, "Reviewing due cards in {:?}", path)?;
     let mut rng = rand::rng();
     let file = OpenOptions::new().write(true).open(path)?;
     let mut writer = csv::WriterBuilder::new()
@@ -36,7 +36,7 @@ pub fn review(path: &Path) -> Result<()> {
         let mut cards_due = false;
         let mut reviews = collect_due_card_indices(&records, now);
         writeln!(
-            lock,
+            stdout_lock,
             "Round {}: {} card{} to review\n",
             round,
             reviews.len(),
@@ -51,7 +51,7 @@ pub fn review(path: &Path) -> Result<()> {
         for (i, is_forward) in reviews {
             let record = &mut records[i];
             let card = &mut record.card;
-            if review_card(now, is_forward, card, &mut lock, &mut stdin_lock)? {
+            if review_card(now, is_forward, card, &mut stdout_lock, &mut stdin_lock)? {
                 cards_due = true;
             }
             update_record(&mut writer, record)?;
@@ -64,7 +64,7 @@ pub fn review(path: &Path) -> Result<()> {
     }
 
     writeln!(
-        lock,
+        stdout_lock,
         "{} review{} of {} card{}. Done.",
         num_reviews,
         if num_reviews == 1 { "" } else { "s" },
