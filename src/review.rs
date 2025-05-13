@@ -3,11 +3,15 @@ use crate::utils::{clear, create_reader, parse_timespan, read_line};
 use anyhow::Result;
 use chrono::{Local, NaiveDate, TimeDelta};
 use csv::Writer;
+use rand::rngs::ThreadRng;
+use rand::seq::IndexedRandom;
 use rand::seq::SliceRandom;
 use std::cmp::max;
 use std::fs::{File, OpenOptions};
 use std::io::{stdin, stdout, BufRead, Seek, SeekFrom, Write};
 use std::path::Path;
+
+const JITTER: &[i64] = &[-1, 0, 1];
 
 /// Lets user review all due cards until there aren't anymore.
 pub fn review(path: &Path) -> Result<()> {
@@ -51,7 +55,14 @@ pub fn review(path: &Path) -> Result<()> {
         for (i, is_forward) in reviews {
             let record = &mut records[i];
             let card = &mut record.card;
-            if review_card(now, is_forward, card, &mut stdout_lock, &mut stdin_lock)? {
+            if review_card(
+                now,
+                is_forward,
+                card,
+                &mut stdout_lock,
+                &mut stdin_lock,
+                &mut rng,
+            )? {
                 cards_due = true;
             }
             update_record(&mut writer, record)?;
@@ -117,6 +128,7 @@ fn review_card<R, W>(
     card: &mut Card,
     stdout: &mut W,
     stdin: &mut R,
+    rng: &mut ThreadRng,
 ) -> Result<bool>
 where
     R: BufRead,
@@ -155,7 +167,11 @@ where
     let timespan: String = read_line(&mut *stdin)?;
 
     let timespan: TimeDelta = if timespan.is_empty() {
-        max((now - *card_ref.last_review) * 2, TimeDelta::days(1))
+        let jitter = JITTER.choose(rng).unwrap();
+        max(
+            (now - *card_ref.last_review) * 2 + TimeDelta::days(*jitter),
+            TimeDelta::days(1),
+        )
     } else {
         parse_timespan(&timespan)?
     };
@@ -192,8 +208,15 @@ fn test_review_card() {
         next_backward_review: today,
     };
     let mut stdout = Cursor::new(Vec::new());
-    let mut stdin = Cursor::new(b"\n\n");
-    let result = review_card(today, true, &mut card, &mut stdout, &mut stdin);
+    let mut stdin = Cursor::new(b"\n4\n");
+    let result = review_card(
+        today,
+        true,
+        &mut card,
+        &mut stdout,
+        &mut stdin,
+        &mut rand::rng(),
+    );
 
     // Check result: timespan is not zero
     assert!(!result.ok().unwrap());
