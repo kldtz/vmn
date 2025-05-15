@@ -11,7 +11,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{stdin, stdout, BufRead, Seek, SeekFrom, Write};
 use std::path::Path;
 
-const JITTER: &[i64] = &[-1, 0, 1];
+const JITTER: &[i64] = &[0, 1, 2];
 
 /// Lets user review all due cards until there aren't anymore.
 pub fn review(path: &Path) -> Result<()> {
