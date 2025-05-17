@@ -150,13 +150,23 @@ where
         }
     };
 
-    write!(stdout, "F: {}", card_ref.front)?;
+    write!(
+        stdout,
+        "{}: {}",
+        if is_forward { "F" } else { "B" },
+        card_ref.front
+    )?;
     stdout.flush()?;
     let _: String = read_line(&mut *stdin)?;
 
     let num_days = (now - *card_ref.last_review).num_days();
     let suffix = if num_days == 1 { "" } else { "s" };
-    writeln!(stdout, "B: {}", card_ref.back)?;
+    writeln!(
+        stdout,
+        "{}: {}",
+        if is_forward { "B" } else { "F" },
+        card_ref.back
+    )?;
     write!(
         stdout,
         "Last review: {} day{} ago. Next in: ",
