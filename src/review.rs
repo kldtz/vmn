@@ -10,6 +10,7 @@ use std::cmp::max;
 use std::fs::{File, OpenOptions};
 use std::io::{stdin, stdout, BufRead, Seek, SeekFrom, Write};
 use std::path::Path;
+use std::str::FromStr;
 
 const JITTER: &[i64] = &[0, 1, 2];
 
@@ -169,21 +170,24 @@ where
     )?;
     write!(
         stdout,
-        "Last review: {} day{} ago. Next in: ",
+        "Last review: {} day{} ago. Next: ",
         num_days, suffix
     )?;
     stdout.flush()?;
 
-    let timespan: String = read_line(&mut *stdin)?;
-
-    let timespan: TimeDelta = if timespan.is_empty() {
+    let next: String = read_line(&mut *stdin)?;
+    let timespan: TimeDelta = if next.is_empty() {
         let jitter = JITTER.choose(rng).unwrap();
         max(
             (now - *card_ref.last_review) * 2 + TimeDelta::days(*jitter),
             TimeDelta::days(1),
         )
+    } else if next.contains(".") {
+        // parse string into float
+        let factor = f64::from_str(&next)?;
+        TimeDelta::days(((now - *card_ref.last_review).num_days() as f64 * factor).round() as i64)
     } else {
-        parse_timespan(&timespan)?
+        parse_timespan(&next)?
     };
     *card_ref.next_review = now + timespan;
     *card_ref.last_review = now;
@@ -235,9 +239,47 @@ fn test_review_card() {
     let stdout_vec = stdout.into_inner();
     assert_eq!(
         String::from_utf8_lossy(&stdout_vec),
-        "F: aB: b\nLast review: 2 days ago. Next in: \n\u{1b}[2J\u{1b}[1;1H"
+        "F: aB: b\nLast review: 2 days ago. Next: \n\u{1b}[2J\u{1b}[1;1H"
     );
 
-    // Check that card was updated: double timespan by default
+    // Check that card was updated: 4 days
     assert_eq!(card.next_forward_review, today + TimeDelta::days(4))
+}
+
+#[test]
+fn test_review_card_with_factor() {
+    use std::io::Cursor;
+
+    let today = NaiveDate::from_ymd_opt(2025, 5, 10).unwrap();
+    let mut card = Card {
+        front: String::from("a"),
+        back: String::from("b"),
+        last_forward_review: NaiveDate::from_ymd_opt(2025, 5, 8).unwrap(),
+        last_backward_review: NaiveDate::from_ymd_opt(2025, 5, 9).unwrap(),
+        next_forward_review: today,
+        next_backward_review: today,
+    };
+    let mut stdout = Cursor::new(Vec::new());
+    let mut stdin = Cursor::new(b"\n2.5\n");
+    let result = review_card(
+        today,
+        true,
+        &mut card,
+        &mut stdout,
+        &mut stdin,
+        &mut rand::rng(),
+    );
+
+    // Check result: timespan is not zero
+    assert!(!result.ok().unwrap());
+
+    // Check prompts
+    let stdout_vec = stdout.into_inner();
+    assert_eq!(
+        String::from_utf8_lossy(&stdout_vec),
+        "F: aB: b\nLast review: 2 days ago. Next: \n\u{1b}[2J\u{1b}[1;1H"
+    );
+
+    // Check that card was updated: multiply previous interval by 2.5
+    assert_eq!(card.next_forward_review, today + TimeDelta::days(5))
 }
