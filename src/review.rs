@@ -4,15 +4,13 @@ use anyhow::Result;
 use chrono::{Local, NaiveDate, TimeDelta};
 use csv::Writer;
 use rand::rngs::ThreadRng;
-use rand::seq::IndexedRandom;
 use rand::seq::SliceRandom;
+use rand::Rng;
 use std::cmp::max;
 use std::fs::{File, OpenOptions};
 use std::io::{stdin, stdout, BufRead, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::str::FromStr;
-
-const JITTER: &[i64] = &[0, 1, 2];
 
 /// Lets user review all due cards until there aren't anymore.
 pub fn review(path: &Path) -> Result<()> {
@@ -177,15 +175,15 @@ where
 
     let next: String = read_line(&mut *stdin)?;
     let timespan: TimeDelta = if next.is_empty() {
-        let jitter = JITTER.choose(rng).unwrap();
+        let factor = rng.random_range(2.0..2.5);
         max(
-            (now - *card_ref.last_review) * 2 + TimeDelta::days(*jitter),
+            compute_interval(now, *card_ref.last_review, factor),
             TimeDelta::days(1),
         )
     } else if next.contains(".") {
         // parse string into float
         let factor = f64::from_str(&next)?;
-        TimeDelta::days(((now - *card_ref.last_review).num_days() as f64 * factor).round() as i64)
+        compute_interval(now, *card_ref.last_review, factor)
     } else {
         parse_timespan(&next)?
     };
@@ -195,6 +193,10 @@ where
     clear(stdout)?;
     stdout.flush()?;
     Ok(timespan.is_zero())
+}
+
+fn compute_interval(now: NaiveDate, last_review: NaiveDate, factor: f64) -> TimeDelta {
+    TimeDelta::days(((now - last_review).num_days() as f64 * factor).round() as i64)
 }
 
 /// Replaces given record at its byte offset. Assumes that the byte size didn't change.
