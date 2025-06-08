@@ -1,23 +1,11 @@
 use crate::models::Card;
-use crate::utils::{create_reader, read_line};
+use crate::utils::{create_reader, read_line, NoopWriter};
 use anyhow::{anyhow, Result};
 use chrono::{Local, NaiveDate};
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::{stdin, stdout, BufRead, Write};
 use std::path::Path;
-
-struct NoopWriter {}
-
-impl Write for NoopWriter {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
 
 /// Lets user add as many new cards as he wants to a given CSV file.
 pub fn add(path: &Path, silent: bool) -> Result<()> {
