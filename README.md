@@ -44,6 +44,21 @@ vmn add french.csv
 
 You get the same prompts as with the `init` command, but `add` will complain if the file does not exist.
 
+Sometimes it's inconvenient to add cards interactively on the command line.
+For example, I had issues typing combining Unicode characters like Arabic diacritics.
+You can create a simple text file with your favourite editor, where each line represents a side of a card.
+Always start with the front, followed by the back side.
+Obviously, the number of lines must be even in the end.
+Then you feed the content of the file to `add` via stdin:
+
+```bash
+vmn add -s french.csv < your-file.txt
+```
+
+The `-s` (`--silent`) flag suppresses the prompts you get in interactive mode.
+
+
+
 
 ### Review cards from a box of your choice
 

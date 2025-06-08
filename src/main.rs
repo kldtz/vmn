@@ -23,14 +23,17 @@ struct Cli {
     command: Command,
     /// Path to card box (CSV file)
     path: PathBuf,
+    /// Silent
+    #[clap(short, long, default_value = "false")]
+    silent: bool,
 }
 
 fn main() -> Result<()> {
     let args = Cli::parse();
 
     match args.command {
-        Command::Init => init(&args.path),
-        Command::Add => add(&args.path),
+        Command::Init => init(&args.path, args.silent),
+        Command::Add => add(&args.path, args.silent),
         Command::Review => review(&args.path),
         Command::Stats => stats(&args.path),
     }

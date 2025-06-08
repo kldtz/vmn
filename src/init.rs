@@ -5,7 +5,7 @@ use std::path::Path;
 use struct_field_names_as_array::FieldNamesAsArray;
 
 /// Initializes a new CSV file.
-pub fn init(path: &Path) -> Result<()> {
+pub fn init(path: &Path, silent: bool) -> Result<()> {
     if path.exists() {
         return Err(anyhow!(
             "File {:?} already exists! Use `vmn add` to add new cards. Aborting.",
@@ -20,5 +20,5 @@ pub fn init(path: &Path) -> Result<()> {
     writer.write_record(Card::FIELD_NAMES_AS_ARRAY)?;
     writer.flush()?;
     println!("Created new card box {:?}\n", path);
-    add(path)
+    add(path, silent)
 }

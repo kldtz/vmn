@@ -7,8 +7,20 @@ use std::fs::OpenOptions;
 use std::io::{stdin, stdout, BufRead, Write};
 use std::path::Path;
 
+struct NoopWriter {}
+
+impl Write for NoopWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 /// Lets user add as many new cards as he wants to a given CSV file.
-pub fn add(path: &Path) -> Result<()> {
+pub fn add(path: &Path, silent: bool) -> Result<()> {
     if !path.exists() {
         return Err(anyhow!(
             "File {:?} doesn't exist. Use `vmn init` to create it. Aborting.",
@@ -16,7 +28,11 @@ pub fn add(path: &Path) -> Result<()> {
         ));
     }
     let (forward, backward) = build_lookup_tables(path)?;
-    let mut stdout_lock = stdout().lock();
+    let mut stdout_lock: Box<dyn Write> = if silent {
+        Box::new(NoopWriter {})
+    } else {
+        Box::new(stdout().lock())
+    };
     let mut stdin_lock = stdin().lock();
     let file = OpenOptions::new().append(true).open(path)?;
     let now = Local::now().date_naive();
@@ -51,6 +67,11 @@ where
         stdout.write_all(b"Front: ")?;
         stdout.flush()?;
         let front: String = read_line(&mut stdin)?;
+        // Exit on empty input
+        if front.is_empty() {
+            return Ok(());
+        }
+
         if let Some(i) = forward.get(&front) {
             return Err(anyhow!(
                 "A card with this front side already exists. Please check line {} of your CSV file!",
