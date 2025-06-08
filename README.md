@@ -48,7 +48,7 @@ Sometimes it's inconvenient to add cards interactively on the command line.
 For example, I had issues typing combining Unicode characters like Arabic diacritics.
 You can create a simple text file with your favourite editor, where each line represents a side of a card.
 Always start with the front, followed by the back side.
-Obviously, the number of lines must be even in the end.
+The number of lines should be even in the end.
 Then you feed the content of the file to `add` via stdin:
 
 ```bash
