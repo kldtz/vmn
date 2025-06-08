@@ -1,7 +1,7 @@
 use crate::models::Card;
-use crate::utils::{create_reader, parse_timespan, read_line};
+use crate::utils::{create_reader, read_line};
 use anyhow::{anyhow, Result};
-use chrono::{Local, NaiveDate, TimeDelta};
+use chrono::{Local, NaiveDate};
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::{stdin, stdout, BufRead, Write};
@@ -67,24 +67,15 @@ where
                 i,
             ));
         }
-
-        stdout.write_all(b"Days:  ")?;
-        stdout.flush()?;
-        let next_review: String = read_line(&mut stdin)?;
-        let timedelta = if next_review.is_empty() {
-            Ok(TimeDelta::days(0))
-        } else {
-            parse_timespan(&next_review)
-        }?;
         stdout.write_all(b"\n")?;
         stdout.flush()?;
         writer.serialize(Card {
             front: front.clone(),
             back: back.clone(),
             last_forward_review: now,
-            next_forward_review: now + timedelta,
+            next_forward_review: now,
             last_backward_review: now,
-            next_backward_review: now + timedelta,
+            next_backward_review: now,
         })?;
         writer.flush()?;
         forward.insert(front, forward.len() + 2);
@@ -118,15 +109,15 @@ fn build_lookup_tables(path: &Path) -> Result<(HashMap<String, usize>, HashMap<S
 }
 
 #[test]
-fn test_add_cards() {
+fn test_add_cards_stops_at_duplicate_back() {
     use std::io::Cursor;
 
     let mut file = Cursor::new(Vec::new());
     let mut stdout = Cursor::new(Vec::new());
     let mut stdin = Cursor::new(
-        b"a\nb\n10\n\
-    c\nd\n\n\
-    e\nf\nerror",
+        b"a\nb\n\
+    c\nd\n\
+    e\nb\n",
     );
     let date = NaiveDate::from_ymd_opt(2025, 5, 10).unwrap();
     let result = add_cards(
@@ -141,13 +132,13 @@ fn test_add_cards() {
     let stdout_vec = stdout.into_inner();
     assert_eq!(
         String::from_utf8_lossy(&stdout_vec),
-        "Front: Back:  Days:  \nFront: Back:  Days:  \nFront: Back:  Days:  "
+        "Front: Back:  \nFront: Back:  \nFront: Back:  "
     );
 
     // Check result: final input is not a valid number
     assert_eq!(
         result.unwrap_err().to_string(),
-        "invalid digit found in string"
+        "A card with this back side already exists. Please check line 2 of your CSV file!"
     );
 
     // Check output written to CSV file
@@ -155,7 +146,7 @@ fn test_add_cards() {
     let output = String::from_utf8_lossy(&output_vec);
     assert_eq!(
         output,
-        "a|b|2025-05-10|2025-05-20|2025-05-10|2025-05-20\n\
+        "a|b|2025-05-10|2025-05-10|2025-05-10|2025-05-10\n\
     c|d|2025-05-10|2025-05-10|2025-05-10|2025-05-10\n"
     );
 }
@@ -167,8 +158,8 @@ fn test_cannot_add_duplicate_front_in_same_session() {
     let mut file = Cursor::new(Vec::new());
     let mut stdout = Cursor::new(Vec::new());
     let mut stdin = Cursor::new(
-        b"a\nb\n\n\
-    a\nc\n\n",
+        b"a\nb\n\
+    a\nc\n",
     );
     let date = NaiveDate::from_ymd_opt(2025, 5, 10).unwrap();
     let result = add_cards(
@@ -183,52 +174,13 @@ fn test_cannot_add_duplicate_front_in_same_session() {
     let stdout_vec = stdout.into_inner();
     assert_eq!(
         String::from_utf8_lossy(&stdout_vec),
-        "Front: Back:  Days:  \nFront: "
+        "Front: Back:  \nFront: "
     );
 
     // Check result: error message with line number
     assert_eq!(
         result.unwrap_err().to_string(),
         "A card with this front side already exists. Please check line 2 of your CSV file!"
-    );
-
-    // Check output written to CSV file
-    let output_vec = file.into_inner();
-    let output = String::from_utf8_lossy(&output_vec);
-    assert_eq!(output, "a|b|2025-05-10|2025-05-10|2025-05-10|2025-05-10\n");
-}
-
-
-#[test]
-fn test_cannot_add_duplicate_back_in_same_session() {
-    use std::io::Cursor;
-
-    let mut file = Cursor::new(Vec::new());
-    let mut stdout = Cursor::new(Vec::new());
-    let mut stdin = Cursor::new(
-        b"a\nb\n\n\
-    c\nb\n\n",
-    );
-    let date = NaiveDate::from_ymd_opt(2025, 5, 10).unwrap();
-    let result = add_cards(
-        date,
-        &mut file,
-        &mut stdin,
-        &mut stdout,
-        (HashMap::new(), HashMap::new()),
-    );
-
-    // Check prompts
-    let stdout_vec = stdout.into_inner();
-    assert_eq!(
-        String::from_utf8_lossy(&stdout_vec),
-        "Front: Back:  Days:  \nFront: Back:  "
-    );
-
-    // Check result: error message with line number
-    assert_eq!(
-        result.unwrap_err().to_string(),
-        "A card with this back side already exists. Please check line 2 of your CSV file!"
     );
 
     // Check output written to CSV file

@@ -32,8 +32,8 @@ vmn init french.csv
 ```
 
 This will create a new CSV file, unless the file already exists, and allow you to add as many cards as you like.
-For each card, you're prompted to enter the front, the back, and the number of days until the next review.
-Leaving the days empty defaults to zero, so you could review the card on the same day.
+For each card, you're prompted to enter the front and back side.
+The first review is scheduled for the same day.
 
 
 ### Add new cards to an existing box
