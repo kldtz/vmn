@@ -46,7 +46,7 @@ impl fmt::Display for Counts {
                 "  <quarter {}\n",
                 "  <year    {}\n",
                 "  >=year   {}\n\n",
-                "Total: {}"
+                "Total: {} ({} words)"
             ),
             self.today,
             self.day,
@@ -56,6 +56,7 @@ impl fmt::Display for Counts {
             self.year,
             self.more,
             self.total(),
+            self.total() / 2,
         )
     }
 }
