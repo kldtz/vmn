@@ -67,7 +67,7 @@ vmn review french.csv
 ```
 
 This will show you all due cards one-by-one in random order and prompt you for the number of days after which to schedule the next review.
-If you don't specify a number, it doubles the time period since the last review or schedules a review on the next day if the last review happened on the same day.
+If you don't specify a number, it multiplies the time period since the last review by a factor x ∈ [2, 2.5) or schedules a review on the next day if the last review happened on the same day.
 Entering zero reschedules the card for the same day, so the card will re-appear in the same session, unless you exit before with `Ctrl` + `c`.
 Cards are reviewed independently in both directions.
 
