@@ -177,13 +177,13 @@ where
     let timespan: TimeDelta = if next.is_empty() {
         let factor = rng.random_range(2.0..2.5);
         max(
-            compute_interval(now, *card_ref.last_review, factor),
+            compute_interval(*card_ref.next_review, *card_ref.last_review, factor),
             TimeDelta::days(1),
         )
     } else if next.contains(".") {
         // parse string into float
         let factor = f64::from_str(&next)?;
-        compute_interval(now, *card_ref.last_review, factor)
+        compute_interval(*card_ref.next_review, *card_ref.last_review, factor)
     } else {
         parse_timespan(&next)?
     };
@@ -195,8 +195,8 @@ where
     Ok(timespan.is_zero())
 }
 
-fn compute_interval(now: NaiveDate, last_review: NaiveDate, factor: f64) -> TimeDelta {
-    TimeDelta::days(((now - last_review).num_days() as f64 * factor).round() as i64)
+fn compute_interval(next_review: NaiveDate, last_review: NaiveDate, factor: f64) -> TimeDelta {
+    TimeDelta::days(((next_review - last_review).num_days() as f64 * factor).round() as i64)
 }
 
 /// Replaces given record at its byte offset. Assumes that the byte size didn't change.
