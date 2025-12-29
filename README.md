@@ -55,7 +55,7 @@ Then you feed the content of the file to `add` via stdin:
 vmn add -s french.csv < your-file.txt
 ```
 
-The `-s` (`--silent`) flag suppresses the prompts you get in interactive mode.
+The `-s` (`--silent`) flag suppresses the prompts and exceptions you get in interactive mode.
 
 
 
