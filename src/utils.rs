@@ -36,6 +36,11 @@ where
     Ok(input)
 }
 
+pub fn print<W: Write>(mut writer: W, buf: &[u8]) -> io::Result<()> {
+    writer.write_all(buf)?;
+    writer.flush()
+}
+
 pub struct NoopWriter {}
 
 impl Write for NoopWriter {
