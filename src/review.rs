@@ -175,7 +175,7 @@ where
 
     let next: String = read_line(&mut *stdin)?;
     let timespan: TimeDelta = if next.is_empty() {
-        let factor = rng.random_range(2.0..2.5);
+        let factor = rng.random_range(2.0..3.0);
         max(
             compute_interval(*card_ref.next_review, *card_ref.last_review, factor),
             TimeDelta::days(1),
