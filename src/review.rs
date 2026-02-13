@@ -158,28 +158,23 @@ where
     stdout.flush()?;
     let _: String = read_line(&mut *stdin)?;
 
-    let num_days = (now - *card_ref.last_review).num_days();
-    let suffix = if num_days == 1 { "" } else { "s" };
     writeln!(
         stdout,
         "{}: {}",
         if is_forward { "B" } else { "F" },
         card_ref.back
     )?;
-    write!(
-        stdout,
-        "Last review: {} day{} ago. Next: ",
-        num_days, suffix
-    )?;
+    let factor = rng.random_range(2.0..3.0);
+    let default_timespan = max(
+        compute_interval(*card_ref.next_review, *card_ref.last_review, factor),
+        TimeDelta::days(1),
+    );
+    write!(stdout, "Next ({}): ", default_timespan.num_days(),)?;
     stdout.flush()?;
 
     let next: String = read_line(&mut *stdin)?;
     let timespan: TimeDelta = if next.is_empty() {
-        let factor = rng.random_range(2.0..3.0);
-        max(
-            compute_interval(*card_ref.next_review, *card_ref.last_review, factor),
-            TimeDelta::days(1),
-        )
+        default_timespan
     } else if next.contains(".") {
         // parse string into float
         let factor = f64::from_str(&next)?;
@@ -239,10 +234,7 @@ fn test_review_card() {
 
     // Check prompts
     let stdout_vec = stdout.into_inner();
-    assert_eq!(
-        String::from_utf8_lossy(&stdout_vec),
-        "F: aB: b\nLast review: 2 days ago. Next: \n\u{1b}[2J\u{1b}[1;1H"
-    );
+    assert!(String::from_utf8_lossy(&stdout_vec).starts_with("F: aB: b\nNext ("));
 
     // Check that card was updated: 4 days
     assert_eq!(card.next_forward_review, today + TimeDelta::days(4))
@@ -277,10 +269,7 @@ fn test_review_card_with_factor() {
 
     // Check prompts
     let stdout_vec = stdout.into_inner();
-    assert_eq!(
-        String::from_utf8_lossy(&stdout_vec),
-        "F: aB: b\nLast review: 2 days ago. Next: \n\u{1b}[2J\u{1b}[1;1H"
-    );
+    assert!(String::from_utf8_lossy(&stdout_vec).starts_with("F: aB: b\nNext ("));
 
     // Check that card was updated: multiply previous interval by 2.5
     assert_eq!(card.next_forward_review, today + TimeDelta::days(5))

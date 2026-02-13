@@ -138,6 +138,7 @@ fn test_add_cards_detects_and_skips_duplicate() {
         &mut stdout,
         (HashMap::new(), HashMap::new()),
     );
+    assert!(result.is_ok());
 
     // Check prompts
     let stdout_vec = stdout.into_inner();
