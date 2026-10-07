@@ -1,4 +1,4 @@
-use crate::models::{Card, CardRef, Record};
+use crate::models::{Card, Record};
 use crate::utils::{clear, create_reader, parse_timespan, read_line};
 use anyhow::Result;
 use chrono::{Local, NaiveDate, TimeDelta};
@@ -51,13 +51,11 @@ pub fn review(path: &Path) -> Result<()> {
         reviews.shuffle(&mut rng);
 
         // Walk through due cards and let user review
-        for (i, is_forward) in reviews {
+        for i in reviews {
             let record = &mut records[i];
-            let card = &mut record.card;
             if review_card(
                 now,
-                is_forward,
-                card,
+                &mut record.card,
                 &mut stdout_lock,
                 &mut stdin_lock,
                 &mut rng,
@@ -97,7 +95,7 @@ fn collect_due_cards(path: &Path, now: NaiveDate) -> Result<Vec<Record>> {
         })
         .filter(|r| {
             if let Ok(r) = r {
-                r.card.next_forward_review <= now || r.card.next_backward_review <= now
+                r.card.next_review <= now
             } else {
                 false
             }
@@ -106,15 +104,11 @@ fn collect_due_cards(path: &Path, now: NaiveDate) -> Result<Vec<Record>> {
     Ok(records)
 }
 
-fn collect_due_card_indices(cards: &[Record], now: NaiveDate) -> Vec<(usize, bool)> {
-    // Find two sets of indexes: due forward reviews & due backward reviews
-    let mut reviews: Vec<(usize, bool)> = Vec::new();
+fn collect_due_card_indices(cards: &[Record], now: NaiveDate) -> Vec<usize> {
+    let mut reviews: Vec<usize> = Vec::new();
     for (i, record) in cards.iter().enumerate() {
-        if record.card.next_forward_review <= now {
-            reviews.push((i, true));
-        }
-        if record.card.next_backward_review <= now {
-            reviews.push((i, false));
+        if record.card.next_review <= now {
+            reviews.push(i);
         }
     }
     reviews
@@ -123,7 +117,6 @@ fn collect_due_card_indices(cards: &[Record], now: NaiveDate) -> Vec<(usize, boo
 // Lets user review card. Returns true if the card is rescheduled for review on the same day.
 fn review_card<R, W>(
     now: NaiveDate,
-    is_forward: bool,
     card: &mut Card,
     stdout: &mut W,
     stdin: &mut R,
@@ -133,40 +126,14 @@ where
     R: BufRead,
     W: Write,
 {
-    let card_ref = if is_forward {
-        CardRef {
-            front: &card.front,
-            back: &card.back,
-            last_review: &mut card.last_forward_review,
-            next_review: &mut card.next_forward_review,
-        }
-    } else {
-        CardRef {
-            front: &card.back,
-            back: &card.front,
-            last_review: &mut card.last_backward_review,
-            next_review: &mut card.next_backward_review,
-        }
-    };
-
-    write!(
-        stdout,
-        "{}: {}",
-        if is_forward { "F" } else { "B" },
-        card_ref.front
-    )?;
+    write!(stdout, "F: {}", card.front)?;
     stdout.flush()?;
     let _: String = read_line(&mut *stdin)?;
 
-    writeln!(
-        stdout,
-        "{}: {}",
-        if is_forward { "B" } else { "F" },
-        card_ref.back
-    )?;
+    writeln!(stdout, "B: {}", card.back)?;
     let factor = rng.random_range(2.0..3.0);
     let default_timespan = max(
-        compute_interval(*card_ref.next_review, *card_ref.last_review, factor),
+        compute_interval(card.next_review, card.last_review, factor),
         TimeDelta::days(1),
     );
     write!(stdout, "Next ({}): ", default_timespan.num_days(),)?;
@@ -178,12 +145,12 @@ where
     } else if next.contains(".") {
         // parse string into float
         let factor = f64::from_str(&next)?;
-        compute_interval(*card_ref.next_review, *card_ref.last_review, factor)
+        compute_interval(card.next_review, card.last_review, factor)
     } else {
         parse_timespan(&next)?
     };
-    *card_ref.next_review = now + timespan;
-    *card_ref.last_review = now;
+    card.next_review = now + timespan;
+    card.last_review = now;
     writeln!(stdout)?;
     clear(stdout)?;
     stdout.flush()?;
@@ -213,21 +180,12 @@ fn test_review_card() {
     let mut card = Card {
         front: String::from("a"),
         back: String::from("b"),
-        last_forward_review: NaiveDate::from_ymd_opt(2025, 5, 8).unwrap(),
-        last_backward_review: NaiveDate::from_ymd_opt(2025, 5, 9).unwrap(),
-        next_forward_review: today,
-        next_backward_review: today,
+        last_review: NaiveDate::from_ymd_opt(2025, 5, 8).unwrap(),
+        next_review: today,
     };
     let mut stdout = Cursor::new(Vec::new());
     let mut stdin = Cursor::new(b"\n4\n");
-    let result = review_card(
-        today,
-        true,
-        &mut card,
-        &mut stdout,
-        &mut stdin,
-        &mut rand::rng(),
-    );
+    let result = review_card(today, &mut card, &mut stdout, &mut stdin, &mut rand::rng());
 
     // Check result: timespan is not zero
     assert!(!result.ok().unwrap());
@@ -237,7 +195,7 @@ fn test_review_card() {
     assert!(String::from_utf8_lossy(&stdout_vec).starts_with("F: aB: b\nNext ("));
 
     // Check that card was updated: 4 days
-    assert_eq!(card.next_forward_review, today + TimeDelta::days(4))
+    assert_eq!(card.next_review, today + TimeDelta::days(4))
 }
 
 #[test]
@@ -248,21 +206,12 @@ fn test_review_card_with_factor() {
     let mut card = Card {
         front: String::from("a"),
         back: String::from("b"),
-        last_forward_review: NaiveDate::from_ymd_opt(2025, 5, 8).unwrap(),
-        last_backward_review: NaiveDate::from_ymd_opt(2025, 5, 9).unwrap(),
-        next_forward_review: today,
-        next_backward_review: today,
+        last_review: NaiveDate::from_ymd_opt(2025, 5, 8).unwrap(),
+        next_review: today,
     };
     let mut stdout = Cursor::new(Vec::new());
     let mut stdin = Cursor::new(b"\n2.5\n");
-    let result = review_card(
-        today,
-        true,
-        &mut card,
-        &mut stdout,
-        &mut stdin,
-        &mut rand::rng(),
-    );
+    let result = review_card(today, &mut card, &mut stdout, &mut stdin, &mut rand::rng());
 
     // Check result: timespan is not zero
     assert!(!result.ok().unwrap());
@@ -272,5 +221,5 @@ fn test_review_card_with_factor() {
     assert!(String::from_utf8_lossy(&stdout_vec).starts_with("F: aB: b\nNext ("));
 
     // Check that card was updated: multiply previous interval by 2.5
-    assert_eq!(card.next_forward_review, today + TimeDelta::days(5))
+    assert_eq!(card.next_review, today + TimeDelta::days(5))
 }

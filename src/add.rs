@@ -22,17 +22,11 @@ pub fn add(path: &Path, silent: bool) -> Result<()> {
     } else {
         Box::new(stdout().lock())
     };
-    let (forward, backward) = build_lookup_tables(path, &mut stdout_lock)?;
+    let fronts = build_lookup_table(path, &mut stdout_lock)?;
     let mut stdin_lock = stdin().lock();
     let file = OpenOptions::new().append(true).open(path)?;
     let now = Local::now().date_naive();
-    add_cards(
-        now,
-        file,
-        &mut stdin_lock,
-        &mut stdout_lock,
-        (forward, backward),
-    )
+    add_cards(now, file, &mut stdin_lock, &mut stdout_lock, fronts)
 }
 
 fn add_cards<F, R, W>(
@@ -40,7 +34,7 @@ fn add_cards<F, R, W>(
     file: F,
     mut stdin: R,
     mut stdout: W,
-    (mut forward, mut backward): (HashMap<String, usize>, HashMap<String, usize>),
+    mut fronts: HashMap<String, usize>,
 ) -> Result<()>
 where
     F: Write,
@@ -63,59 +57,40 @@ where
 
         let mut skip = false;
 
-        if let Some(i) = forward.get(&front) {
+        if let Some(i) = fronts.get(&front) {
             skip = true;
             writeln!(&mut stdout, "A card with this front side already exists. Please check line {} of your CSV file!", i)?;
         }
 
         print(&mut stdout, b"Back:  ")?;
         let back: String = read_line(&mut stdin)?;
-        if let Some(i) = backward.get(&back) {
-            skip = true;
-            writeln!(
-                &mut stdout,
-                "A card with this back side already exists. Please check line {} of your CSV file!",
-                i
-            )?;
-        }
         print(&mut stdout, b"\n")?;
         if skip {
             continue;
         }
         writer.serialize(Card {
             front: front.clone(),
-            back: back.clone(),
-            last_forward_review: now,
-            next_forward_review: now,
-            last_backward_review: now,
-            next_backward_review: now,
+            back,
+            last_review: now,
+            next_review: now,
         })?;
         writer.flush()?;
-        forward.insert(front, forward.len() + 2);
-        backward.insert(back, backward.len() + 2);
+        fronts.insert(front, fronts.len() + 2);
     }
 }
 
-fn build_lookup_tables<W: Write>(
-    path: &Path,
-    mut stdout: W,
-) -> Result<(HashMap<String, usize>, HashMap<String, usize>)> {
+fn build_lookup_table<W: Write>(path: &Path, mut stdout: W) -> Result<HashMap<String, usize>> {
     let mut reader = create_reader(path)?;
-    let mut forward = HashMap::<String, usize>::new();
-    let mut backward = HashMap::<String, usize>::new();
+    let mut fronts = HashMap::<String, usize>::new();
     for (i, record) in reader.records().enumerate() {
         let line = i + 2;
         let card = record?.deserialize::<Card>(None)?;
-        if let Some(j) = forward.get(&card.front) {
+        if let Some(j) = fronts.get(&card.front) {
             writeln!(&mut stdout, "The front side {} in line {} is a duplicate! Please check line {} of your CSV file!", &card.front, line, j)?;
         }
-        forward.insert(card.front, line);
-        if let Some(j) = backward.get(&card.back) {
-            writeln!(&mut stdout, "The back side {} in line {} is a duplicate! Please check line {} of your CSV file!", &card.back, line, j)?;
-        }
-        backward.insert(card.back, line);
+        fronts.insert(card.front, line);
     }
-    Ok((forward, backward))
+    Ok(fronts)
 }
 
 #[test]
@@ -131,13 +106,7 @@ fn test_add_cards_detects_and_skips_duplicate() {
     f\ng\n",
     );
     let date = NaiveDate::from_ymd_opt(2025, 5, 10).unwrap();
-    let result = add_cards(
-        date,
-        &mut file,
-        &mut stdin,
-        &mut stdout,
-        (HashMap::new(), HashMap::new()),
-    );
+    let result = add_cards(date, &mut file, &mut stdin, &mut stdout, HashMap::new());
     assert!(result.is_ok());
 
     // Check prompts
@@ -152,8 +121,8 @@ fn test_add_cards_detects_and_skips_duplicate() {
     let output = String::from_utf8_lossy(&output_vec);
     assert_eq!(
         output,
-        "a|b|2025-05-10|2025-05-10|2025-05-10|2025-05-10\n\
-    c|d|2025-05-10|2025-05-10|2025-05-10|2025-05-10\n\
-    f|g|2025-05-10|2025-05-10|2025-05-10|2025-05-10\n"
+        "a|b|2025-05-10|2025-05-10\n\
+    c|d|2025-05-10|2025-05-10\n\
+    f|g|2025-05-10|2025-05-10\n"
     );
 }

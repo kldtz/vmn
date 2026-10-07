@@ -46,7 +46,7 @@ impl fmt::Display for Counts {
                 "  <quarter {}\n",
                 "  <year    {}\n",
                 "  >=year   {}\n\n",
-                "Total: {} ({} words)"
+                "Total: {}"
             ),
             self.today,
             self.day,
@@ -56,7 +56,6 @@ impl fmt::Display for Counts {
             self.year,
             self.more,
             self.total(),
-            self.total() / 2,
         )
     }
 }
@@ -66,10 +65,8 @@ pub fn stats(path: &Path) -> Result<()> {
     let mut counts = Counts::default();
     for record in reader.records() {
         let card = record?.deserialize::<Card>(None)?;
-        let forward_days = (card.next_forward_review - card.last_forward_review).num_days();
-        counts.increment_count(forward_days);
-        let backward_days = (card.next_backward_review - card.last_backward_review).num_days();
-        counts.increment_count(backward_days);
+        let days = (card.next_review - card.last_review).num_days();
+        counts.increment_count(days);
     }
     println!("{}", counts);
     Ok(())

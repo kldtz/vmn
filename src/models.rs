@@ -12,15 +12,6 @@ pub struct Record {
 pub struct Card {
     pub front: String,
     pub back: String,
-    pub last_forward_review: NaiveDate,
-    pub next_forward_review: NaiveDate,
-    pub last_backward_review: NaiveDate,
-    pub next_backward_review: NaiveDate,
-}
-
-pub struct CardRef<'a> {
-    pub front: &'a str,
-    pub back: &'a str,
-    pub last_review: &'a mut NaiveDate,
-    pub next_review: &'a mut NaiveDate,
+    pub last_review: NaiveDate,
+    pub next_review: NaiveDate,
 }
