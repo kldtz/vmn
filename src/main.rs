@@ -1,14 +1,12 @@
 use anyhow::Result;
 use clap::Parser;
-use serde::Serialize;
 use std::path::PathBuf;
 use vmn::add::add;
 use vmn::init::init;
 use vmn::review::review;
 use vmn::stats::stats;
 
-#[derive(clap::ValueEnum, Clone, Debug, Serialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(clap::ValueEnum, Clone, Debug)]
 enum Command {
     Init,
     Add,
