@@ -22,11 +22,18 @@ pub fn add(path: &Path, silent: bool) -> Result<()> {
     } else {
         Box::new(stdout().lock())
     };
-    let fronts = build_lookup_table(path, &mut stdout_lock)?;
+    let (fronts, next_line) = build_lookup_table(path, &mut stdout_lock)?;
     let mut stdin_lock = stdin().lock();
     let file = OpenOptions::new().append(true).open(path)?;
     let now = Local::now().date_naive();
-    add_cards(now, file, &mut stdin_lock, &mut stdout_lock, fronts)
+    add_cards(
+        now,
+        file,
+        &mut stdin_lock,
+        &mut stdout_lock,
+        fronts,
+        next_line,
+    )
 }
 
 fn add_cards<F, R, W>(
@@ -35,6 +42,7 @@ fn add_cards<F, R, W>(
     mut stdin: R,
     mut stdout: W,
     mut fronts: HashMap<String, usize>,
+    mut next_line: usize,
 ) -> Result<()>
 where
     F: Write,
@@ -75,22 +83,29 @@ where
             next_review: now,
         })?;
         writer.flush()?;
-        fronts.insert(front, fronts.len() + 2);
+        fronts.insert(front, next_line);
+        next_line += 1;
     }
 }
 
-fn build_lookup_table<W: Write>(path: &Path, mut stdout: W) -> Result<HashMap<String, usize>> {
+/// Builds a front -> line lookup table and returns it together with the line number
+/// the next appended card will occupy.
+fn build_lookup_table<W: Write>(
+    path: &Path,
+    mut stdout: W,
+) -> Result<(HashMap<String, usize>, usize)> {
     let mut reader = create_reader(path)?;
     let mut fronts = HashMap::<String, usize>::new();
-    for (i, record) in reader.records().enumerate() {
-        let line = i + 2;
+    let mut line = 1;
+    for record in reader.records() {
+        line += 1;
         let card = record?.deserialize::<Card>(None)?;
         if let Some(j) = fronts.get(&card.front) {
             writeln!(&mut stdout, "The front side {} in line {} is a duplicate! Please check line {} of your CSV file!", &card.front, line, j)?;
         }
         fronts.insert(card.front, line);
     }
-    Ok(fronts)
+    Ok((fronts, line + 1))
 }
 
 #[test]
@@ -106,7 +121,7 @@ fn test_add_cards_detects_and_skips_duplicate() {
     f\ng\n",
     );
     let date = NaiveDate::from_ymd_opt(2025, 5, 10).unwrap();
-    let result = add_cards(date, &mut file, &mut stdin, &mut stdout, HashMap::new());
+    let result = add_cards(date, &mut file, &mut stdin, &mut stdout, HashMap::new(), 2);
     assert!(result.is_ok());
 
     // Check prompts
