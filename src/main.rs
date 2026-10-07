@@ -18,6 +18,15 @@ enum Command {
 
 /// Spaced-repetition CLI VergissMeinNicht.
 #[derive(Parser)]
+#[command(
+    version,
+    help_template = "\
+{before-help}{name} {version}
+{about-with-newline}
+{usage-heading} {usage}
+
+{all-args}{after-help}"
+)]
 struct Cli {
     /// What to do
     command: Command,
