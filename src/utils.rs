@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use chrono::TimeDelta;
 use csv::Reader;
 use std::fs::File;
@@ -8,6 +8,9 @@ use std::path::Path;
 
 pub fn parse_timespan(s: &str) -> Result<TimeDelta> {
     let days: i64 = s.parse()?;
+    if days < 0 {
+        return Err(anyhow!("number of days must not be negative, got {days}"));
+    }
     Ok(TimeDelta::days(days))
 }
 
