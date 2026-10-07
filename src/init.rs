@@ -19,6 +19,8 @@ pub fn init(path: &Path, silent: bool) -> Result<()> {
         .from_path(path)?;
     writer.write_record(Card::FIELD_NAMES_AS_ARRAY)?;
     writer.flush()?;
-    println!("Created new card box {:?}\n", path);
+    if !silent {
+        println!("Created new card box {:?}\n", path);
+    }
     add(path, silent)
 }
