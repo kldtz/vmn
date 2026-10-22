@@ -1,5 +1,5 @@
 use crate::models::{Card, Record};
-use crate::utils::{clear, create_reader, parse_timespan, read_line};
+use crate::utils::{clear, create_reader, parse_timespan, read_line, render_markdown};
 use anyhow::{anyhow, bail, Result};
 use chrono::{Local, NaiveDate, TimeDelta};
 use rand::rngs::ThreadRng;
@@ -13,7 +13,7 @@ use std::str::FromStr;
 
 /// Lets user review all due cards until there aren't anymore.
 pub fn review(path: &Path) -> Result<()> {
-    let clear_screen = stdout().is_terminal();
+    let is_terminal = stdout().is_terminal();
     let mut stdout_lock = stdout().lock();
     let mut stdin_lock = stdin().lock();
     let now: NaiveDate = Local::now().date_naive();
@@ -22,7 +22,7 @@ pub fn review(path: &Path) -> Result<()> {
         writeln!(stdout_lock, "No cards due for review in {:?}", path)?;
         return Ok(());
     }
-    if clear_screen {
+    if is_terminal {
         clear(&mut stdout_lock)?;
     }
     writeln!(stdout_lock, "Reviewing due cards in {:?}", path)?;
@@ -56,7 +56,7 @@ pub fn review(path: &Path) -> Result<()> {
                 &mut stdout_lock,
                 &mut stdin_lock,
                 &mut rng,
-                clear_screen,
+                is_terminal,
             )? {
                 cards_due = true;
             }
@@ -129,17 +129,27 @@ fn review_card<R, W>(
     stdout: &mut W,
     stdin: &mut R,
     rng: &mut ThreadRng,
-    clear_screen: bool,
+    is_terminal: bool,
 ) -> Result<bool>
 where
     R: BufRead,
     W: Write,
 {
-    write!(stdout, "F: {}", card.front)?;
+    let front = if is_terminal {
+        render_markdown(&card.front)
+    } else {
+        card.front.clone()
+    };
+    write!(stdout, "F: {}", front)?;
     stdout.flush()?;
     let _: String = read_line(&mut *stdin)?;
 
-    writeln!(stdout, "B: {}", card.back)?;
+    let back = if is_terminal {
+        render_markdown(&card.back)
+    } else {
+        card.back.clone()
+    };
+    writeln!(stdout, "B: {}", back)?;
     let factor = rng.random_range(2.0..3.0);
     let default_timespan = max(
         compute_interval(card.next_review, card.last_review, factor),
@@ -164,7 +174,7 @@ where
     card.next_review = now + timespan;
     card.last_review = now;
     writeln!(stdout)?;
-    if clear_screen {
+    if is_terminal {
         clear(stdout)?;
     }
     stdout.flush()?;
@@ -269,6 +279,33 @@ fn test_review_card_with_factor() {
 
     // Check that card was updated: multiply previous interval by 2.5
     assert_eq!(card.next_review, today + TimeDelta::days(5))
+}
+
+#[test]
+fn test_review_card_renders_markdown() {
+    use std::io::Cursor;
+
+    let today = NaiveDate::from_ymd_opt(2025, 5, 10).unwrap();
+    let mut card = Card {
+        front: String::from("a *b* **c**"),
+        back: String::from("**d**"),
+        last_review: NaiveDate::from_ymd_opt(2025, 5, 8).unwrap(),
+        next_review: today,
+    };
+    let mut stdout = Cursor::new(Vec::new());
+    let mut stdin = Cursor::new(b"\n4\n");
+    let result = review_card(
+        today,
+        &mut card,
+        &mut stdout,
+        &mut stdin,
+        &mut rand::rng(),
+        true,
+    );
+    assert!(!result.ok().unwrap());
+
+    let stdout = String::from_utf8_lossy(&stdout.into_inner()).to_string();
+    assert!(stdout.starts_with("F: a \x1b[3mb\x1b[23m \x1b[1mc\x1b[22mB: \x1b[1md\x1b[22m\nNext ("));
 }
 
 #[cfg(test)]
