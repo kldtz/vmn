@@ -33,6 +33,7 @@ pub fn add(path: &Path, silent: bool) -> Result<()> {
         &mut stdout_lock,
         fronts,
         next_line,
+        silent,
     )
 }
 
@@ -43,6 +44,7 @@ fn add_cards<F, R, W>(
     mut stdout: W,
     mut fronts: HashMap<String, usize>,
     mut next_line: usize,
+    silent: bool,
 ) -> Result<()>
 where
     F: Write,
@@ -63,19 +65,19 @@ where
             return Ok(());
         }
 
-        let mut skip = false;
-
         if let Some(i) = fronts.get(&front) {
-            skip = true;
             writeln!(&mut stdout, "A card with this front side already exists. Please check line {} of your CSV file!", i)?;
+            // In silent mode the input is a flat list of sides that must stay paired,
+            // so consume the back side of the duplicate even though we discard it.
+            if silent {
+                let _ = read_line(&mut stdin)?;
+            }
+            continue;
         }
 
         print(&mut stdout, b"Back:  ")?;
         let back: String = read_line(&mut stdin)?;
         print(&mut stdout, b"\n")?;
-        if skip {
-            continue;
-        }
         writer.serialize(Card {
             front: front.clone(),
             back,
@@ -117,18 +119,26 @@ fn test_add_cards_detects_and_skips_duplicate() {
     let mut stdin = Cursor::new(
         b"a\nb\n\
     c\nd\n\
-    a\nf\n\
+    a\n\
     f\ng\n",
     );
     let date = NaiveDate::from_ymd_opt(2025, 5, 10).unwrap();
-    let result = add_cards(date, &mut file, &mut stdin, &mut stdout, HashMap::new(), 2);
+    let result = add_cards(
+        date,
+        &mut file,
+        &mut stdin,
+        &mut stdout,
+        HashMap::new(),
+        2,
+        false,
+    );
     assert!(result.is_ok());
 
     // Check prompts
     let stdout_vec = stdout.into_inner();
     assert_eq!(
         String::from_utf8_lossy(&stdout_vec),
-        "Front: Back:  \nFront: Back:  \nFront: A card with this front side already exists. Please check line 2 of your CSV file!\nBack:  \nFront: Back:  \nFront: "
+        "Front: Back:  \nFront: Back:  \nFront: A card with this front side already exists. Please check line 2 of your CSV file!\nFront: Back:  \nFront: "
     );
 
     // Check output written to CSV file
@@ -139,5 +149,33 @@ fn test_add_cards_detects_and_skips_duplicate() {
         "a|b|2025-05-10|2025-05-10\n\
     c|d|2025-05-10|2025-05-10\n\
     f|g|2025-05-10|2025-05-10\n"
+    );
+}
+
+#[test]
+fn test_add_cards_silent_consumes_back_of_duplicate() {
+    use std::io::Cursor;
+
+    let mut file = Cursor::new(Vec::new());
+    let mut stdout = Cursor::new(Vec::new());
+    // The back side of the duplicate front "a" must be consumed so that the
+    // remaining sides stay paired as (b, c) and (d, e).
+    let mut stdin = Cursor::new(
+        b"a\nx\n\
+    b\nc\n\
+    d\ne\n",
+    );
+    let mut fronts = HashMap::new();
+    fronts.insert("a".to_string(), 2);
+    let date = NaiveDate::from_ymd_opt(2025, 5, 10).unwrap();
+    let result = add_cards(date, &mut file, &mut stdin, &mut stdout, fronts, 3, true);
+    assert!(result.is_ok());
+
+    let output_vec = file.into_inner();
+    let output = String::from_utf8_lossy(&output_vec);
+    assert_eq!(
+        output,
+        "b|c|2025-05-10|2025-05-10\n\
+    d|e|2025-05-10|2025-05-10\n"
     );
 }
